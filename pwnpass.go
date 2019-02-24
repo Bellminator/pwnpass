@@ -24,6 +24,21 @@ func (e *TooManyRequests) Error() string {
 	return fmt.Sprintf("too many requests, retry in %d seconds", e.RetryIn)
 }
 
+// Client that holds the URL and HTTP client.
+type Client struct {
+	client *http.Client
+	url    string
+}
+
+// New returns a new Client with the default URL and HTTP client.
+func New() *Client {
+	c := Client{
+		client: http.DefaultClient,
+		url:    rangeEP,
+	}
+	return &c
+}
+
 // Match takes a hash.Hash and returns the number of passwords
 // found that match that hash. In the event of an error, the
 // function will return -1 and the error.
@@ -32,11 +47,11 @@ func (e *TooManyRequests) Error() string {
 // contains the item RetryIn. RetryIn is the number of seconds to wait before
 // trying to make another Match() call.
 // Defined at https://haveibeenpwned.com/API/v2#PwnedPasswords.
-func Match(h hash.Hash) (int, error) {
+func (c *Client) Match(h hash.Hash) (int, error) {
 	hs := hex.EncodeToString(h.Sum(nil))
-	g := fmt.Sprintf("%s%s", rangeEP, hs[:5])
+	g := fmt.Sprintf("%s/%s", c.url, hs[:5])
 
-	resp, err := http.Get(g)
+	resp, err := c.client.Get(g)
 	if err != nil {
 		return -1, fmt.Errorf("could not GET %s: %v", g, err)
 	}
@@ -56,9 +71,10 @@ func Match(h hash.Hash) (int, error) {
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	hsUpper := strings.ToUpper(hs[5:])
 	for scanner.Scan() {
 		s := strings.Split(scanner.Text(), ":")
-		if s[0] == strings.ToUpper(hs[5:]) {
+		if s[0] == hsUpper {
 			si, err := strconv.Atoi(s[1])
 			if err != nil {
 				return -1, fmt.Errorf("could not convert string to int: %v", err)
