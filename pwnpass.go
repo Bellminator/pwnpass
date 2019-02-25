@@ -56,14 +56,15 @@ func (c *Client) Match(h hash.Hash) (int, error) {
 		return -1, fmt.Errorf("could not GET %s: %v", g, err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusTooManyRequests {
 			// Extract retry time.
 			r := resp.Header.Get("retry-after")
 			ri, err := strconv.Atoi(r)
 			if err != nil {
-				return -1, fmt.Errorf("could not convert string to int: %v", err)
+				// We mostly care about returning the TooManyRequestsError, so
+				// we just log this and move on.
+				fmt.Fprintf(os.Stderr, "could not convert string to int: %v", err)
 			}
 			return -1, &TooManyRequests{RetryIn: ri}
 		}
